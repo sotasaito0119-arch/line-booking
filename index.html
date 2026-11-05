@@ -31,6 +31,21 @@
       <input type="tel" id="phone" required placeholder="09012345678">
     </div>
     <div class="form-group">
+      <label>施術スタイル（必須）</label>
+      <select id="locationType" required>
+        <option value="来店希望">来店希望</option>
+        <option value="出張希望">出張希望</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>ご希望メニュー（必須）</label>
+      <select id="menu" required>
+        <option value="全身（60分）" data-duration="60">1. 全身（60分）</option>
+        <option value="全身＋気になる部位（90分）" data-duration="90">2. 全身＋気になる部位（90分）</option>
+        <option value="肩/首こり特化（30分）" data-duration="30">3. 肩/首こり特化（30分）</option>
+      </select>
+    </div>
+    <div class="form-group">
       <label>ご希望日（必須）</label>
       <input type="date" id="date" required>
     </div>
@@ -41,8 +56,8 @@
       </select>
     </div>
     <div class="form-group">
-      <label>お悩み・気になる症状</label>
-      <textarea id="symptom" rows="3" placeholder="肩こり、腰痛 など"></textarea>
+      <label>お悩み・気になる症状 / 出張時の住所など</label>
+      <textarea id="symptom" rows="3" placeholder="肩こり、腰痛など（※出張希望の場合はご住所もご記入ください）"></textarea>
     </div>
     <button type="submit" id="submitBtn">予約を確定する</button>
   </form>
@@ -50,15 +65,11 @@
 </div>
 
 <script>
-  // ==========================================
-  // 【設定エリア】ご提示いただいたIDとURLを設定済み
-  // ==========================================
   const LIFF_ID        = "2012311367-1GsUqpDC"; 
   const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbweg6ZXqC0CRZ-5XTGRE10JYt-jrXUBTGwl4nUbspfG_1uNdtNxPKJz-bFmlDjor4Ei/exec";
   
   let userLineId = "";
 
-  // 1. LIFF初期化
   document.addEventListener("DOMContentLoaded", function() {
     liff.init({ liffId: LIFF_ID })
       .then(() => {
@@ -76,11 +87,12 @@
       .catch(err => console.error("LIFF Init Error:", err));
   });
 
-  // 2. 日付選択時にGoogleカレンダーから空き枠を自動取得
-  document.getElementById("date").addEventListener("change", function() {
-    const selectedDate = this.value;
-    const timeSelect = document.getElementById("time");
-    const status = document.getElementById("status");
+  function fetchAvailableSlots() {
+    const selectedDate = document.getElementById("date").value;
+    const menuSelect   = document.getElementById("menu");
+    const duration     = menuSelect.options[menuSelect.selectedIndex].getAttribute("data-duration");
+    const timeSelect   = document.getElementById("time");
+    const status       = document.getElementById("status");
 
     if (!selectedDate) return;
 
@@ -88,7 +100,7 @@
     timeSelect.innerHTML = '<option value="">空き枠を確認中...</option>';
     status.innerText = "";
 
-    fetch(`${GAS_WEBAPP_URL}?date=${selectedDate}`)
+    fetch(`${GAS_WEBAPP_URL}?date=${selectedDate}&duration=${duration}`)
       .then(res => res.json())
       .then(data => {
         if (data.status === "success") {
@@ -113,13 +125,20 @@
         console.error(err);
         timeSelect.innerHTML = '<option value="">通信エラーが発生しました</option>';
       });
+  }
+
+  document.getElementById("date").addEventListener("change", fetchAvailableSlots);
+  document.getElementById("menu").addEventListener("change", function() {
+    if (document.getElementById("date").value) {
+      fetchAvailableSlots();
+    }
   });
 
-  // 3. 予約確定時のデータ送信処理
   document.getElementById("bookingForm").addEventListener("submit", function(e) {
     e.preventDefault();
     const btn = document.getElementById("submitBtn");
     const status = document.getElementById("status");
+    const menuSelect = document.getElementById("menu");
 
     btn.disabled = true;
     status.style.color = "#333";
@@ -128,6 +147,9 @@
     const payload = {
       name: document.getElementById("name").value,
       phone: document.getElementById("phone").value,
+      locationType: document.getElementById("locationType").value,
+      menu: menuSelect.value,
+      duration: menuSelect.options[menuSelect.selectedIndex].getAttribute("data-duration"),
       date: document.getElementById("date").value,
       time: document.getElementById("time").value,
       symptom: document.getElementById("symptom").value,
@@ -142,7 +164,7 @@
     .then(data => {
       if (data.status === "success") {
         status.style.color = "#06C755";
-        status.innerText = "予約が完了しました！LINE画面に戻ります。";
+        status.innerText = "予約申込みが完了しました！LINE画面に戻ります。";
         setTimeout(() => {
           liff.closeWindow();
         }, 2000);
